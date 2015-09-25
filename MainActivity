@@ -1,0 +1,245 @@
+
+package com.theartofdev.edmodo.cropper.imagecrop;
+
+import android.app.Activity;
+import android.app.Dialog;
+import android.content.ComponentName;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.graphics.Bitmap;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Environment;
+import android.os.Parcelable;
+import android.provider.MediaStore;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.widget.ImageView;
+
+import com.example.croppersample.R;
+import com.theartofdev.edmodo.cropper.CropImageView;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.List;
+
+public class MainActivity extends Activity {
+
+    // Static final constants
+    private static final int DEFAULT_ASPECT_RATIO_VALUES = 10;
+
+    private static final int ROTATE_NINETY_DEGREES = 90;
+
+    private static final String ASPECT_RATIO_X = "ASPECT_RATIO_X";
+
+    private static final String ASPECT_RATIO_Y = "ASPECT_RATIO_Y";
+
+    private static final int ON_TOUCH = 1;
+
+    Intent chooserIntent;
+    // Instance variables
+    private int mAspectRatioX = DEFAULT_ASPECT_RATIO_VALUES;
+
+    private int mAspectRatioY = DEFAULT_ASPECT_RATIO_VALUES;
+
+    Bitmap croppedImage;
+    ImageView croppedImageView;
+
+    // Saves the state upon rotating the screen/restarting the activity
+    @Override
+    protected void onSaveInstanceState(@SuppressWarnings("NullableProblems") Bundle bundle) {
+        super.onSaveInstanceState(bundle);
+        bundle.putInt(ASPECT_RATIO_X, mAspectRatioX);
+        bundle.putInt(ASPECT_RATIO_Y, mAspectRatioY);
+    }
+
+    // Restores the state upon rotating the screen/restarting the activity
+    @Override
+    protected void onRestoreInstanceState(@SuppressWarnings("NullableProblems") Bundle bundle) {
+        super.onRestoreInstanceState(bundle);
+        mAspectRatioX = bundle.getInt(ASPECT_RATIO_X);
+        mAspectRatioY = bundle.getInt(ASPECT_RATIO_Y);
+    }
+
+    public void onCreate(Bundle savedInstanceState) {
+
+        super.onCreate(savedInstanceState);
+        this.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        setContentView(R.layout.activity_main);
+        croppedImageView = (ImageView) findViewById(R.id.ImageView);
+
+
+        croppedImageView.setOnClickListener(new View.OnClickListener() {
+
+            @Override
+            public void onClick(View v) {
+                startActivityForResult(getPickImageChooserIntent(), 200);
+
+
+            }
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, final Intent data) {
+        if (resultCode == RESULT_OK) {
+            Uri imageUri = getPickImageResultUri(data);
+
+
+            final Dialog dialog = new Dialog(MainActivity.this);
+            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+            dialog.setContentView(R.layout.crop_view);
+            Window window = dialog.getWindow();
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            dialog.show();
+
+            final CropImageView cropImageView = (CropImageView) dialog.findViewById(R.id.CropImageView);
+            cropImageView.setImageUri(imageUri);
+            cropImageView.setCropShape(CropImageView.CropShape.RECTANGLE);
+            cropImageView.setAspectRatio(DEFAULT_ASPECT_RATIO_VALUES, DEFAULT_ASPECT_RATIO_VALUES);
+            dialog.findViewById(R.id.Button_crop).setOnClickListener(new View.OnClickListener() {
+
+                @Override
+                public void onClick(View v) {
+                    croppedImage = cropImageView.getCroppedImage();
+                    croppedImageView.invalidate();
+                    croppedImageView.setImageBitmap(croppedImage);
+                    dialog.dismiss();
+
+                    saveToSdCard(croppedImage);
+
+
+                }
+            });
+
+
+        }
+    }
+
+    private void saveToSdCard(Bitmap thePic) {
+
+        File direct = new File(Environment.getExternalStorageDirectory() + "/PHIL");
+
+        if (!direct.exists()) {
+            File wallpaperDirectory = new File("/sdcard/PHIL/");
+            wallpaperDirectory.mkdirs();
+        }
+
+        File file = new File(new File("/sdcard/PHIL/"), "insurance.jpg");
+        if (file.exists()) {
+            file.delete();
+        }
+        try {
+            FileOutputStream out = new FileOutputStream(file);
+            thePic.compress(Bitmap.CompressFormat.JPEG, 100, out);
+            out.flush();
+            out.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    //get the returned data
+//        OutputStream output;
+//
+//        File filepath = new File(Environment.getExternalStorageDirectory() + "/PHIL");
+//
+//        // Create a new folder in SD Card
+//        File dir = new File("/sdcard/PHIL/");
+//        dir.mkdirs();
+//
+//        // Create a name for the saved image
+//        File file = new File(dir, "myimage.png");
+//
+//        // Show a toast message on successful save
+//        Toast.makeText(MainActivity.this, "Image Saved to SD Card",
+//                Toast.LENGTH_SHORT).show();
+//        try {
+//
+//            output = new FileOutputStream(file);
+//
+//            // Compress into png format image from 0% - 100%
+//            thePic.compress(Bitmap.CompressFormat.PNG, 100, output);
+//            output.flush();
+//            output.close();
+//        } catch (Exception e) {
+//            // TODO Auto-generated catch block
+//            e.printStackTrace();
+//        }
+
+
+    }
+    /**
+     * Create a chooser intent to select the source to get image from.<br/>
+     * The source can be camera's (ACTION_IMAGE_CAPTURE) or gallery's (ACTION_GET_CONTENT).<br/>
+     * All possible sources are added to the intent chooser.
+     */
+    public Intent getPickImageChooserIntent() {
+
+        // Determine Uri of camera image to save.
+        Uri outputFileUri = getCaptureImageOutputUri();
+
+        List<Intent> allIntents = new ArrayList<>();
+        PackageManager packageManager = getPackageManager();
+
+        // collect all camera intents
+        Intent captureIntent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+        List<ResolveInfo> listCam = packageManager.queryIntentActivities(captureIntent, 0);
+        for (ResolveInfo res : listCam) {
+            Intent intent = new Intent(captureIntent);
+            intent.setComponent(new ComponentName(res.activityInfo.packageName, res.activityInfo.name));
+            intent.setPackage(res.activityInfo.packageName);
+            if (outputFileUri != null) {
+                intent.putExtra(MediaStore.EXTRA_OUTPUT, outputFileUri);
+            }
+            allIntents.add(intent);
+        }
+
+        // the main intent is the last in the list (fucking android) so pickup the useless one
+        Intent mainIntent = allIntents.get(allIntents.size() - 1);
+        for (Intent intent : allIntents) {
+            if (intent.getComponent().getClassName().equals("com.android.documentsui.DocumentsActivity")) {
+                mainIntent = intent;
+                break;
+            }
+        }
+        allIntents.remove(mainIntent);
+
+        // Create a chooser from the main intent
+        chooserIntent = Intent.createChooser(mainIntent, "Select source");
+
+        // Add all other intents
+        chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, allIntents.toArray(new Parcelable[allIntents.size()]));
+
+        return chooserIntent;
+    }
+
+    /**
+     * Get URI to image received from capture by camera.
+     */
+    private Uri getCaptureImageOutputUri() {
+        Uri outputFileUri = null;
+        File getImage = getExternalCacheDir();
+        if (getImage != null) {
+            outputFileUri = Uri.fromFile(new File(getImage.getPath(), "pickImageResult.jpeg"));
+        }
+        return outputFileUri;
+    }
+
+    /**
+     * Get the URI of the selected image from {@link #getPickImageChooserIntent()}.<br/>
+     * Will return the correct URI for camera and gallery image.
+     *
+     * @param data the returned data of the activity result
+     */
+    public Uri getPickImageResultUri(Intent data) {
+        boolean isCamera = true;
+        if (data != null) {
+            String action = data.getAction();
+            isCamera = action != null && action.equals(MediaStore.ACTION_IMAGE_CAPTURE);
+        }
+        return isCamera ? getCaptureImageOutputUri() : data.getData();
+    }
+}
